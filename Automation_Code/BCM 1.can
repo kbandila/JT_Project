@@ -1,0 +1,167 @@
+/*@!Encoding:1252*/
+includes
+{
+  
+}
+
+variables
+{
+  message BCM_Msg_1_CAN CAN_BCM_MSG_1_CAN;
+  message Drive_Asst_Data_CAN CAN_DRIVE_ASST_DATA_CAN;
+  
+  msTimer TIMER_CAN_BCM_MSG_1_CAN;
+  msTimer TIMER_CAN_DRIVE_ASST_DATA_CAN;
+  
+  const long TIMER_VALUE_CAN_BCM_MSG_1_CAN = 100;
+  const long TIMER_VALUE_CAN_DRIVE_ASST_DATA_CAN = 1000;
+  
+}
+
+on start
+{
+  setTimer(TIMER_CAN_BCM_MSG_1_CAN, TIMER_VALUE_CAN_BCM_MSG_1_CAN);
+  settimer(TIMER_CAN_DRIVE_ASST_DATA_CAN, TIMER_VALUE_CAN_DRIVE_ASST_DATA_CAN);
+}
+
+on timer TIMER_CAN_BCM_MSG_1_CAN
+{
+  sendBCM_Msg_1_CAN();
+  setTimer(TIMER_CAN_BCM_MSG_1_CAN, TIMER_VALUE_CAN_BCM_MSG_1_CAN);
+}
+
+void sendBCM_Msg_1_CAN(void)
+{
+  byte miss_value;
+  byte main_value;
+  
+  miss_value = @MissingSwitches::Sys_Miss_BCM_Msg_1_CAN;
+  main_value = @MissingSwitches::Sys_MainSwitch;
+  
+  if( miss_value == 0x0 && main_value == 0x0)
+  {
+    output(CAN_BCM_MSG_1_CAN);
+  }
+  else 
+  {
+    //do nothing;
+  }
+}
+on sysvar GWM::Sys_CRD_Msg_Txt_Rq
+{
+  byte max_value;
+  if(max_value <= 0xFFFF)
+  {
+    CAN_BCM_MSG_1_CAN.CRD_Msg_Txt_Rq = @GWM::Sys_CRD_Msg_Txt_Rq;
+    
+  }
+  else
+  {
+    openpanel("ERRORPOPUP");
+  }
+}
+
+on sysvar GWM::Sys_CRD_Msg_Txt_Rq_Dsply
+{
+  CAN_BCM_MSG_1_CAN.CRD_Msg_Txt_Rq_Dsply = @GWM::Sys_CRD_Msg_Txt_Rq_Dsply;
+  
+}
+
+on sysvar GWM::Sys_Ignition_Status
+{
+  CAN_BCM_MSG_1_CAN.Ignition_Status = @GWM::Sys_Ignition_Status;
+  
+}
+
+on timer TIMER_CAN_DRIVE_ASST_DATA_CAN
+{
+  sendDrive_Asst_Data_CAN();
+  settimer(TIMER_CAN_DRIVE_ASST_DATA_CAN, TIMER_VALUE_CAN_DRIVE_ASST_DATA_CAN);
+}
+
+void sendDrive_Asst_Data_CAN(void)
+{
+  byte miss_value;
+  byte main_value;
+  miss_value = @MissingSwitches::Sys_Miss_Drive_Asst_Data_CAN;
+  main_value = @MissingSwitches::Sys_MainSwitch;
+  
+  if ( miss_value == 0x0 && main_value == 0x0)
+  {
+    output(CAN_DRIVE_ASST_DATA_CAN);
+  }
+  else 
+  {
+    //do nothing;
+  }
+  
+}
+
+on sysvar BCM::Sys_Artst_Name_1_Rq
+{
+  CAN_DRIVE_ASST_DATA_CAN.Artst_Name_1_Rq = @BCM::Sys_Artst_Name_1_Rq;
+  sendDrive_Asst_Data_CAN();
+}
+
+  on sysvar BCM::Sys_Artst_Name_2_Rq
+{
+  CAN_DRIVE_ASST_DATA_CAN.Artst_Name_1_Rq = @BCM::Sys_Artst_Name_2_Rq;
+  sendDrive_Asst_Data_CAN();
+}
+
+on sysvar BCM::Sys_Menu_scrn_1_Data
+{
+  CAN_DRIVE_ASST_DATA_CAN.Artst_Name_1_Rq = @BCM::Sys_Menu_scrn_1_Data;
+  sendDrive_Asst_Data_CAN();
+}
+
+on sysvar BCM::Sys_Radio_Txt_1_Rq
+{
+  byte max_value;
+    if( max_value <= 0xF)
+    {
+        CAN_DRIVE_ASST_DATA_CAN.Artst_Name_1_Rq = @BCM::Sys_Radio_Txt_1_Rq;
+        sendDrive_Asst_Data_CAN();
+    }
+    else
+    {
+      openpanel("ERRORPOPUP");
+    }
+    
+}
+
+on sysvar BCM::Sys_Radio_Txt_2_Rq
+{
+  byte max_value;
+    if( max_value <= 0xF)
+    {
+        CAN_DRIVE_ASST_DATA_CAN.Artst_Name_1_Rq = @BCM::Sys_Radio_Txt_2_Rq;
+        sendDrive_Asst_Data_CAN();
+    }
+    else
+    {
+      openpanel("ERRORPOPUP");
+    }
+    
+}
+
+on sysvar BCM::Sys_Radio_Txt_3_Rq
+{
+  byte max_value;
+    if( max_value <= 0xF)
+    {
+        CAN_DRIVE_ASST_DATA_CAN.Artst_Name_1_Rq = @BCM::Sys_Radio_Txt_3_Rq;
+        sendDrive_Asst_Data_CAN();
+    }
+    else
+    {
+      openpanel("ERRORPOPUP");
+    }
+    
+}
+  
+  
+
+  
+  
+  
+

@@ -1,0 +1,545 @@
+/*@!Encoding:1252*/
+includes
+{
+  
+}
+
+variables
+{
+  message 0x18DAF1B0x Response;
+  message 0x18DAB0F1x Request;
+  char buf_SW_version[1000];
+  char buf_SW_File[1000];
+  int is_in_extendedsession=0;
+  int is_in_programming_Session=0;
+  int is_in_default_Session=1;
+  msTimer NRC_78_Timer_for_programming_session,NRC_78_Timer_for_default_session_session,Flashing_progress_bar_timer,Sid_11_timer;  
+  int pannel_error_SW_Version=0, pannel_error_SW_file=0;
+  dword length_Flash_file,length_SW_version;
+  int is_flashing_started =0;
+  char SW_version_flashed[1000];
+  byte sw_version[64];
+  byte SID_11_sub_function;
+  //===========================================
+  long glbPeriod = 250;
+
+  dword glbHandle = 0;
+  long glbValue;
+
+}
+
+on timer Sid_11_timer
+{ 
+  positive_response_11(SID_11_sub_function);
+}
+
+on message 0x18DAB0F1x
+{
+  write("request received");
+  Response.DataLength = 4069;
+  Response.dlc=64;
+  Response.FDF=1;
+  if(this.byte(1)==0x10 && this.byte(2) == 0x03 && this.byte(3)==0x55)
+  {
+    if(is_in_programming_Session==1)
+    {
+    NRC_7E(this.byte(1));
+    }
+    else
+    {
+      is_in_extendedsession =1;
+      is_in_default_Session=0;
+      is_in_programming_Session=0;
+  positive_response_SID_10(this.byte(2));
+    }
+  }
+  else if(this.byte(1)==0x10 && this.byte(2) == 0x01 && this.byte(3)==0x55)
+  {
+    if(is_in_programming_Session==1)
+    {
+    NRC_78(this.byte(1));
+    setTimer(NRC_78_Timer_for_default_session_session,500);
+    }
+    else
+    {
+  is_in_extendedsession =0;
+      is_in_programming_Session=0;
+    positive_response_SID_10(this.byte(2));
+      is_in_default_Session=1;
+    }
+  }
+  else if(this.byte(1)==0x10 && this.byte(2) == 0x02 && this.byte(3)==0x55)
+  {
+    if(is_in_extendedsession ==1)
+    {
+      if(@GWM::Sys_Sig_Spdmtr_Rq>=5)
+      {
+        NRC_22(this.byte(1));
+      }
+      else
+      {
+    NRC_78(this.byte(1));
+    setTimer(NRC_78_Timer_for_programming_session,500);
+      }
+    }
+    else if(is_in_programming_Session==1)
+    {
+      if(@GWM::Sys_Sig_Spdmtr_Rq>=5)
+      {
+        NRC_22(this.byte(1));
+      }
+      else
+      {
+    setTimer(NRC_78_Timer_for_programming_session,500);
+      }
+    }
+    else
+    {
+      NRC_7E(this.byte(1));
+    }
+  }
+  else if((this.byte(1)==0x10 && this.byte(2)==0x55)||(this.byte(1)==0x10 && this.byte(2) == 0x02 && this.byte(3)!=0x55)||(this.byte(1)==0x10 && this.byte(2) == 0x01 && this.byte(3)!=0x55)||(this.byte(1)==0x10 && this.byte(2) == 0x03 && this.byte(3)!=0x55))
+  {
+    NRC_13(this.byte(1));
+  }
+  else if(this.byte(1)==0x10 && (this.byte(2)!=0x01 || this.byte(2)!=0x02 ||this.byte(2)!=0x03 || this.byte(2)!=0x55))
+  {
+    NRC_12(this.byte(1));
+  }
+  else if(this.byte(1)==0x3E && this.byte(2) == 0x00)
+  {
+    Testerpresent_response();
+  }
+  else if(this.byte(1)==0x11 && this.byte(2) == 0x01 && this.byte(3)== 0x55)
+  {
+    if(is_in_default_Session==1 || is_in_extendedsession==1)
+    {
+      if(@GWM::Sys_Sig_Spdmtr_Rq>=5)
+      {
+        NRC_22(this.byte(1));
+      }
+      else
+      {
+        SID_11_sub_function=this.byte(2);
+        setTimer(Sid_11_timer,500);
+      is_in_extendedsession =0;
+      is_in_default_Session=1;
+      is_in_programming_Session=0;
+      }
+    }
+    else
+    {
+      NRC_7E(this.byte(1));
+    }
+  }
+  else if(this.byte(1)==0x11 && this.byte(2) == 0x02 && this.byte(3)== 0x55)
+  {
+    if(is_in_programming_Session==1)
+    {
+      if(@GWM::Sys_Sig_Spdmtr_Rq>=5)
+      {
+        NRC_22(this.byte(1));
+      }
+      else
+      {
+      SID_11_sub_function=this.byte(2);
+      setTimer(Sid_11_timer,500);
+      is_in_extendedsession =0;
+      is_in_default_Session=1;
+      is_in_programming_Session=0;
+      }
+    }
+    else
+    {
+      NRC_7E(this.byte(1));
+    }
+  }
+  else if(this.byte(1)==0x22)
+  {
+    DID_Details(this.byte(2), this.byte(3));
+  }
+  
+}
+
+void positive_response_11(byte subfunction)
+{
+  Response.byte(0) = 0x02;
+  Response.byte(1) = 0x50;
+  Response.byte(2) = subfunction;
+  Response.byte(3) = 0x00;
+  Response.byte(4) = 0x00;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+}
+
+on sysvar MissingSwitches::Flashing
+{
+  if(@MissingSwitches::Flashing ==2)
+  {
+    setControlVisibility("Download_Pannel","SW_Flash_Warning",0);
+    setControlVisibility("Download_Pannel","SW_Flash_Cancelled",0);
+    setControlVisibility("Download_Pannel","Select_SW_File_warning",0);
+    setControlVisibility("Download_Pannel","Select_SW_Version_warning",0);
+    sysSetVariableString("MissingSwitches","Flash_file","");
+    sysSetVariableString("MissingSwitches","SW_Version","");
+    openPanel("Download_Pannel");
+  }
+  else if(@MissingSwitches::Flashing ==1)
+  {
+    openPanel("Upload_Pannel");
+  }
+    
+}
+
+
+on sysvar MissingSwitches::Flash_file
+{
+  if(is_flashing_started==0)
+  {
+  length_Flash_file = sysGetVariableArrayLength(sysvar::MissingSwitches::Flash_file);
+  if(length_Flash_file==0)
+  {
+      pannel_error_SW_file=1;
+      setControlVisibility("Download_Pannel","Select_SW_File_warning",1);
+      setControlColors("Download_Pannel","Select_SW_File_warning",MakeRGB(255,0,0), MakeRGB(0,0,255));
+    
+  }
+  else
+  {
+    pannel_error_SW_file=0;
+    setControlVisibility("Download_Pannel","Select_SW_File_warning",0);
+  }
+}
+  else
+  {
+    //Do Nothing
+  }
+}
+
+
+on sysvar MissingSwitches::SW_Version
+{
+  if(is_flashing_started==0)
+  {
+    if(length_SW_version==0)
+  {
+      pannel_error_SW_Version=1;
+      setControlVisibility("Download_Pannel","Select_SW_Version_warning",1);
+      setControlColors("Download_Pannel","Select_SW_Version_warning",MakeRGB(255,0,0), MakeRGB(0,0,255));
+    
+  }
+  else
+  {
+    pannel_error_SW_Version=0;
+    setControlVisibility("Download_Pannel","Select_SW_Version_warning",0);
+  }
+  }
+  else
+  {
+    //do nothing 
+  }
+  
+}
+
+on sysvar MissingSwitches::Flashing_submit_button
+{
+  is_flashing_started=0;
+    setControlVisibility("Download_Pannel","SW_Flash_Warning",0);
+  setControlVisibility("Download_Pannel","SW_Flash_Cancelled",0);
+    SetControlBackColor("Download_Pannel", "Button_SW_Flash", MakeRGB(255,0,0));
+    //setControlVisibility("Download_Pannel","Button_SW_Flash",0);
+  
+    length_Flash_file = sysGetVariableArrayLength(sysvar::MissingSwitches::Flash_file); 
+    length_SW_version = sysGetVariableArrayLength(sysvar::MissingSwitches::SW_Version);
+   
+  if(length_Flash_file==0)
+  {
+      pannel_error_SW_file=1;
+      setControlVisibility("Download_Pannel","Select_SW_File_warning",1);
+      setControlColors("Download_Pannel","Select_SW_File_warning",MakeRGB(255,0,0), MakeRGB(0,0,255));
+    
+  }
+  else
+  {
+    pannel_error_SW_file=0;
+    setControlVisibility("Download_Pannel","Select_SW_File_warning",0);
+  }
+  if(length_SW_version==0)
+  {
+      pannel_error_SW_Version=1;
+      setControlVisibility("Download_Pannel","Select_SW_Version_warning",1);
+      setControlColors("Download_Pannel","Select_SW_Version_warning",MakeRGB(255,0,0), MakeRGB(0,0,255));
+    
+  }
+  else
+  {
+    pannel_error_SW_Version=0;
+    setControlVisibility("Download_Pannel","Select_SW_Version_warning",0);
+  }
+//  setControlVisibility("Download_Pannel","SW_Flash_Warning",1);
+//  setControlColors("Download_Pannel","SW_Flash_Warning",MakeRGB(255,0,0), MakeRGB(0,0,255));
+  if(pannel_error_SW_file==0 && pannel_error_SW_Version==0)
+  {
+    is_flashing_started =1;
+    setControlVisibility("Download_Pannel","Button_SW_Flash",0);
+    setControlVisibility("Download_Pannel","Button_SW_Cancel",1);
+    
+    setTimer(Flashing_progress_bar_timer,500);
+  }
+  else
+  {
+   is_flashing_started =0; 
+  }
+}
+
+on timer Flashing_progress_bar_timer
+{
+  setControlVisibility("Download_Pannel","Flashing_progress",1);
+  if(@MissingSwitches::Progress_Bar_Flashing==100)
+  {
+    int i=0;
+    @MissingSwitches::Progress_Bar_Flashing=0;
+    sysGetVariableString(sysvar::MissingSwitches::SW_Version, buf_SW_version, elcount(buf_SW_version));
+    load_sw_verson_in_file(buf_SW_version);
+    
+    for(i=0;i<length_SW_version+1;i++)
+    {
+      sw_version[i] = buf_SW_version[i];
+      write("SW version in Byte %c",sw_version[i]);
+    }
+    sysSetVariableString("MissingSwitches","Flash_file","");
+    sysSetVariableString("MissingSwitches","SW_Version","");
+    setControlVisibility("Download_Pannel","Button_SW_Flash",1);
+    setControlVisibility("Download_Pannel","Button_SW_Cancel",0);
+    setControlVisibility("Download_Pannel","SW_Flash_Warning",1);
+    setControlVisibility("Download_Pannel","Flashing_progress",0);
+    setControlColors("Download_Pannel","SW_Flash_Warning",MakeRGB(255,0,0), MakeRGB(0,0,255));
+    if(@MissingSwitches::Close_Pannel_once_flasing_done ==1)
+    {
+      setControlVisibility("Download_Pannel","Flashing_progress",0);
+      closePanel("Download_Pannel");
+      closePanel("Flashing");
+    }
+    else
+    {
+      //Do nothing
+    }
+  }
+  else
+  {
+    @MissingSwitches::Progress_Bar_Flashing = @MissingSwitches::Progress_Bar_Flashing+5;
+    setTimer(Flashing_progress_bar_timer,500);
+  }
+}
+
+void load_sw_verson_in_file(char sw_version[])
+{
+  char buffer[64]="SW_version:";
+  long ret;
+//  glbHandle = OpenFileWrite ("DID_Data.Txt",0);
+//  if(glbHandle !=0)
+//  {
+//  fileGetString(buffer,elcount(buffer),glbHandle);
+//    glbValue = atol (buffer);
+//    write ("Last value %d.",glbValue);
+//  fileClose (glbHandle);
+//  }
+  glbHandle = OpenFileWrite ("DID_Data.Txt",2);
+  if(glbHandle !=0)
+  {
+    snprintf(buffer,elcount(buffer),"SW_version: %s\n",sw_version);
+    filePutString (buffer, elcount(buffer),glbHandle);
+    fileClose (glbHandle);
+
+  }
+  //SW_version_flashed = sw_version;
+}
+
+on sysvar MissingSwitches::Flashing_cancel_switch
+{
+  cancelTimer(Flashing_progress_bar_timer);
+  setControlVisibility("Download_Pannel","SW_Flash_Cancelled",1);
+  setControlColors("Download_Pannel","SW_Flash_Cancelled",MakeRGB(255,0,0), MakeRGB(0,0,255));
+  @MissingSwitches::Progress_Bar_Flashing=0;
+  sysSetVariableString("MissingSwitches","Flash_file","");
+  sysSetVariableString("MissingSwitches","SW_Version","");
+  setControlVisibility("Download_Pannel","Button_SW_Flash",1);
+  setControlVisibility("Download_Pannel","Button_SW_Cancel",0);
+  
+  
+}
+
+void Testerpresent_response()
+{
+  Response.byte(0) = 0x02;
+  Response.byte(1) = 0x7E;
+  Response.byte(2) = 0x00;
+  Response.byte(3) = 0x00;
+  Response.byte(4) = 0x00;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+}
+
+on timer NRC_78_Timer_for_programming_session
+{
+  positive_response_SID_10(0x02);
+  is_in_programming_Session = 1;
+  is_in_extendedsession=0;
+  is_in_default_Session=0;
+}
+on timer NRC_78_Timer_for_default_session_session
+{
+  positive_response_SID_10(0x01);
+  is_in_default_Session=1;
+  is_in_programming_Session=0;
+  is_in_extendedsession =0;
+}
+
+void positive_response_SID_10(byte subFunction)
+{
+  Response.byte(0) = 0x06;
+  Response.byte(1) = 0x50;
+  Response.byte(2) = subFunction;
+  Response.byte(3) = 0x01;
+  Response.byte(4) = 0xF4;
+  Response.byte(5) = 0x13;
+  Response.byte(6) = 0x88;
+  output(Response);
+}
+
+void NRC_78(byte from_service)
+{
+  Response.byte(0) = 0x03;
+  Response.byte(1) = 0x7F;
+  Response.byte(2) = from_service;
+  Response.byte(3) = 0x78;
+  Response.byte(4) = 0x00;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+}
+void NRC_22(byte from_service)
+{
+  Response.byte(0) = 0x03;
+  Response.byte(1) = 0x7F;
+  Response.byte(2) = from_service;
+  Response.byte(3) = 0x22;
+  Response.byte(4) = 0x00;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+}
+
+void NRC_7E(byte from_service)
+{
+  Response.byte(0) = 0x03;
+  Response.byte(1) = 0x7F;
+  Response.byte(2) = from_service;
+  Response.byte(3) = 0x7E;
+  Response.byte(4) = 0x00;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+}
+void NRC_13(byte from_service)
+{
+  Response.byte(0) = 0x03;
+  Response.byte(1) = 0x7F;
+  Response.byte(2) = from_service;
+  Response.byte(3) = 0x13;
+  Response.byte(4) = 0x00;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+}
+void NRC_12(byte from_service)
+{
+  Response.byte(0) = 0x03;
+  Response.byte(1) = 0x7F;
+  Response.byte(2) = from_service;
+  Response.byte(3) = 0x12;
+  Response.byte(4) = 0x00;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+}
+
+void DID_Details(byte DID_1, byte DID_2)
+{
+  if(DID_1 == 0xF2 && DID_2 == 0x13)
+  {
+    if(is_in_default_Session==1)
+    {
+      Session_response(DID_1,DID_2,0x1);
+    }
+    else if(is_in_extendedsession==1)
+    {
+      Session_response(DID_1,DID_2,0x3);
+    }
+    else if(is_in_programming_Session==1)
+    {
+      Session_response(DID_1,DID_2,0x2);
+    }
+  }
+  else if(DID_1==0X18 && DID_2 == 0x00)
+  {
+    int i;
+  Response.byte(0) = length_SW_version+3;
+  Response.byte(1) = 0x62;
+  Response.byte(2) = 0x18;
+  Response.byte(3) = 0x00;
+    for(i=0;i<length_SW_version+1;i++)
+    {
+      Response.byte(4+i) = buf_SW_version[i];
+      sw_version[i] = buf_SW_version[i];
+      write("SW version in Byte %c",sw_version[i]);
+    }
+//  Response.byte(0) = 0x0C;
+//  Response.byte(1) = 0x62;
+//  Response.byte(2) = 0x18;
+//  Response.byte(3) = 0x00;
+//  Response.byte(4) = sw_version[0];
+//  Response.byte(5) = sw_version[1];
+//  Response.byte(6) = sw_version[2];
+//  Response.byte(7) = sw_version[3];
+//  Response.byte(8) = sw_version[4];
+//  Response.byte(9) = sw_version[5];
+//  Response.byte(10) = sw_version[6];
+//  Response.byte(11) = sw_version[7];
+//  Response.byte(12) = sw_version[8];
+  output(Response);
+    for(i=0;i<length_SW_version+1;i++)
+    {
+      Response.byte(4+i) = 0x0;
+    }
+//  Response.byte(0) = 0x00;
+//  Response.byte(1) = 0x00;
+//  Response.byte(2) = 0x00;
+//  Response.byte(3) = 0x00;
+//  Response.byte(4) = 0x00;
+//  Response.byte(5) = 0x00;
+//  Response.byte(6) = 0x00;
+//  Response.byte(7) = 0x00;
+//  Response.byte(8) = 0x00;
+//  Response.byte(9) = 0x00;
+//  Response.byte(10) = 0x00;
+//  Response.byte(11) = 0x00;
+//  Response.byte(12) = 0x00;
+  }
+}
+
+void Session_response(byte DID_1, byte DID_2, byte session)
+{
+  Response.byte(0) = 0x04;
+  Response.byte(1) = 0x62;
+  Response.byte(2) = DID_1;
+  Response.byte(3) = DID_2;
+  Response.byte(4) = session;
+  Response.byte(5) = 0x00;
+  Response.byte(6) = 0x00;
+  output(Response);
+  
+}
+
